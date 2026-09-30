@@ -1,6 +1,6 @@
 import { createAssistantMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import { rewriteCitationMarkers, type DeepSeekRemoteMessage, type DeepSeekRemoteSessionHistory } from '@dsh-deepseek-web/compat'
-import { PROVIDER } from './config.ts'
+import { PROVIDER, type ModelId } from './config.ts'
 import { formatSearchTimeline } from './search-timeline.ts'
 import { extractImportedUserText } from './prompt.ts'
 import {
@@ -78,8 +78,8 @@ export function projectCanonicalMessage(message: DeepSeekRemoteMessage): {
   }
 }
 
-function modelOf(message: DeepSeekRemoteMessage, fallback?: string): 'default' | 'expert' {
-  if (message.modelType === 'expert' || fallback === 'expert') return 'expert'
+/** Historical remotes may still record "expert"; it normalises onto the single live model type. */
+function modelOf(_message: DeepSeekRemoteMessage, _fallback?: string): ModelId {
   return 'default'
 }
 
@@ -486,11 +486,11 @@ function truncateTitle(value: string | undefined): string | undefined {
   return next.length === 0 ? undefined : next
 }
 
-function lastAssistantModel(messages: readonly unknown[]): 'default' | 'expert' | undefined {
+function lastAssistantModel(messages: readonly unknown[]): ModelId | undefined {
   for (let index = messages.length - 1; index >= 0; index--) {
     const message = messages[index] as { role?: string; source?: { model?: string } }
     if (message.role !== 'assistant') continue
-    return message.source?.model === 'expert' ? 'expert' : 'default'
+    return 'default'
   }
   return undefined
 }
