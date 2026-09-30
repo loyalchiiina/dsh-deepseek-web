@@ -5,7 +5,10 @@ import z from '@deepseek-ai/schemastery'
 import { LlmError } from '@deepseek-ai/dsh-llm'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
-import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+// @deepseek-ai/dsh-settings dropped installSettingsSection/settingsNamespace in
+// the 0.2.0 line; they are probed at runtime so one build runs on both the
+// 0.1.x and 0.2.x kernels. See installSettingsSectionIfAvailable below.
+import * as dshSettings from '@deepseek-ai/dsh-settings'
 import { CompatDeepSeekWebClient, ERROR_CODES } from '@dsh-deepseek-web/compat'
 import { DeepSeekWebAdapter } from './adapter.ts'
 import { registerAuthRoutes } from './auth-routes.ts'
@@ -52,7 +55,20 @@ export const Config = z.object({
 export { DeepSeekWebAdapter } from './adapter.ts'
 export { PROVIDER } from './config.ts'
 
-const NS = settingsNamespace(SETTINGS_NS)
+/**
+ * Settings namespace. 0.1.x routed this through settingsNamespace(); the 0.2.0
+ * line removed that helper and consumes the plain string, so fall back to the
+ * constant when the helper is absent.
+ */
+const NS =
+  typeof (dshSettings as { settingsNamespace?: unknown }).settingsNamespace === 'function'
+    ? (dshSettings as { settingsNamespace: (ns: string) => unknown }).settingsNamespace(SETTINGS_NS)
+    : SETTINGS_NS
+
+/** True only on kernels that still publish the settings-section installer. */
+const installSettingsSectionFn = (
+  dshSettings as { installSettingsSection?: (...args: unknown[]) => void }
+).installSettingsSection
 
 type CredentialService = {
   resolve(ref: string): Promise<{ value: string } | undefined>
@@ -178,10 +194,16 @@ export function apply(ctx: Context, config: Config): void {
   })
   registerCommands(ctx, service)
 
-  installSettingsSection(ctx, NS, Config, config, {
-    setSource: source => {
-      current = source as () => Config
-    },
-    onChange: () => options(),
-  })
+  // 0.1.x kernels register a live settings section here. The 0.2.0 line removed
+  // the helper and derives settings from the composed entry config instead
+  // (editable via cordis.patch.yml / the settings UI), so skipping is correct
+  // there rather than an error.
+  if (installSettingsSectionFn) {
+    installSettingsSectionFn(ctx, NS, Config, config, {
+      setSource: source => {
+        current = source as () => Config
+      },
+      onChange: () => options(),
+    })
+  }
 }

@@ -17,7 +17,7 @@ import type {
   LlmResolvedModelInfo,
   StreamChunk,
 } from '@deepseek-ai/dsh-llm'
-import { nativeSearchActive, PROVIDER, type ResolvedConfig } from './config.ts'
+import { nativeSearchActive, PROVIDER, type ModelId, type ResolvedConfig } from './config.ts'
 import { formatSearchTimeline } from './search-timeline.ts'
 import { flattenText, messageHasImage, toolCallBlocks, toolResultFromMessage } from './messages.ts'
 import { resolveSessionTitle } from './title.ts'
@@ -291,10 +291,13 @@ export class DeepSeekWebAdapter extends LlmAdapter {
   }
 
   override async listModels(provider: string): Promise<readonly LlmModelInfo[]> {
-    return [
-      { provider, id: 'default', name: 'DeepSeek Web', inputModalities: ['text'] },
-      { provider, id: 'expert', name: 'DeepSeek Web Expert', inputModalities: ['text'] },
-    ]
+    // DeepSeek's web protocol only carries a single "default" model type now
+    // (the bundled WASM core never mentions "expert"); the former Expert
+    // selection degraded into "same model, native search forced off".
+    // Capability is expressed through the thinking / search settings instead,
+    // so only one model is advertised. Sessions that recorded "expert" remain
+    // readable (see replay.ts and session-materializer.ts).
+    return [{ provider, id: 'default', name: 'DeepSeek Web', inputModalities: ['text'] }]
   }
 
   override async resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
@@ -641,8 +644,9 @@ function thinkingEnabled(options: GenerateOptions, config: ResolvedConfig): bool
   return true
 }
 
-function modelOf(model: string): 'default' | 'expert' {
-  return model === 'expert' ? 'expert' : 'default'
+/** "expert" is no longer a distinct wire model; every selection collapses onto "default". */
+function modelOf(_model: string): ModelId {
+  return 'default'
 }
 
 function toLlm(error: unknown): LlmError {

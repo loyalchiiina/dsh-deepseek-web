@@ -2,6 +2,11 @@ export const PROVIDER = 'deepseek-web'
 export const CREDENTIAL_REF_DEFAULT = 'DEEPSEEK_WEB_TOKEN'
 export const SETTINGS_NS = 'llm-deepseek-web'
 
+/**
+ * Wire model type. DeepSeek's web protocol only carries "default" now, so
+ * "expert" is retained purely for reading historical sessions and stale
+ * configs; every live request normalises onto "default".
+ */
 export type ModelId = 'default' | 'expert'
 export type ThinkingMode = 'enabled' | 'disabled'
 export type NativeSearchMode = 'off' | 'on'
